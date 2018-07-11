@@ -12,9 +12,14 @@ const worldWidth = 1200;
 
 const magicBulletScore = 250;
 
+// Import helpers from the utility file
 import { getRotation, getVelocity } from "../util.js";
 
 export default class Play extends Phaser.Scene {
+    /*
+     * This function is used to calculate what rotation the player
+     * should be at to face the mouse
+     */
     getPlayerRotation() {
         const mouse = this.input.activePointer.positionToCamera(this.cameras.main);
         return getRotation(this.player, mouse);
@@ -45,6 +50,7 @@ export default class Play extends Phaser.Scene {
         this.emitter = undefined;
     }
     create() {
+        // This resizes the world to be larger than the screen
         this.physics.world.setBounds(0, 0, worldWidth, worldHeight);
 
         const ground = this.add.tileSprite(worldWidth/2, worldHeight/2, worldWidth, worldHeight, "ground");
@@ -56,6 +62,7 @@ export default class Play extends Phaser.Scene {
         this.bullets = this.physics.add.group();
         this.bullets.defaultKey = "bullet";
 
+        // This sets the camera to follow the player
         const camera = this.cameras.main;
         camera.startFollow(this.player);
         camera.setBounds(0, 0, worldWidth, worldHeight);
@@ -77,6 +84,10 @@ export default class Play extends Phaser.Scene {
         this.aliens = this.physics.add.group();
         this.aliens.defaultKey = "alien";
 
+        /*
+         * This spawns a new alien every
+         * spawnDelay - score miliseconds
+         */
         const spawnAlien = () => {
             const alien = this.aliens.create(Math.random()*worldWidth, Math.random()*worldHeight);
             alien.setScale(2);
@@ -95,9 +106,13 @@ export default class Play extends Phaser.Scene {
 
         this.particles = this.add.particles("bullet");
 
+        /*
+         * This starts the hud scene ontop of this one
+         */
         this.scene.manager.start("hud", this);  
     }
     update() {
+        // Movement along the Y axis
         if (this.keys.W.isDown || this.keys.Up.isDown) {
             this.player.setVelocityY(-playerSpeed);
         } else if (this.keys.S.isDown || this.keys.Down.isDown) {
@@ -106,6 +121,7 @@ export default class Play extends Phaser.Scene {
             this.player.setVelocityY(0);
         }
 
+        // Movement along the X axis
         if (this.keys.A.isDown || this.keys.Left.isDown) {
             this.player.setVelocityX(-playerSpeed);
         } else if (this.keys.D.isDown || this.keys.Right.isDown) {
@@ -114,19 +130,24 @@ export default class Play extends Phaser.Scene {
             this.player.setVelocityX(0);
         }
 
+        // Update the player to face the mouse
         this.player.rotation = this.getPlayerRotation();
 
         if (this.input.activePointer.primaryDown) {
+            // Play the gun sound, but don't restart it if 
+            // it's already playing
             if (!this.gunSound.isPlaying) {
                 this.gunSound.play();
             }
 
+            // Only fire as fast as the fire rate
             if (this.canFire) {
                 this.canFire = false;
                 this.createBullet(); 
                 this.time.addEvent({
                     delay: fireRate,
                     callback: () => {
+                        // Allow firing again
                         this.canFire = true;
                     }
                 });
@@ -136,9 +157,11 @@ export default class Play extends Phaser.Scene {
         }
 
         for (let alien of this.aliens.getChildren()) {
+            // Rotate the alien to face the player
             const rotation = getRotation(alien, this.player);
             alien.rotation = rotation;
 
+            // Move the alien towards the player
             const velocity = getVelocity(rotation);
             alien.setVelocityX(velocity.x * alienSpeed);
             alien.setVelocityY(velocity.y * alienSpeed);
@@ -148,6 +171,8 @@ export default class Play extends Phaser.Scene {
 
         this.physics.collide(this.player, this.aliens, (player, alien) => {
             alien.destroy();
+
+            // Pulse the camera red
             this.cameras.main.flash(500, 255, 0, 0, 0);
 
             this.health -= 5;
@@ -161,14 +186,22 @@ export default class Play extends Phaser.Scene {
         });
 
         this.physics.collide(this.bullets, this.aliens, (bullet, alien) => {
+            // If the player has magic bullets
+            // then the bullet goes through aliens
+            // otherwise destroy it
             if (this.score < magicBulletScore) {
                 bullet.destroy();
             }
 
             alien.destroy();
             this.score++;
+
+            // Trigger an update of the score on the hud
             this.events.emit("updateHUD");
 
+
+            // If the player reaches the magicBulletScore
+            // then the player starts eminating bullets
             if (this.score === magicBulletScore) {
                 this.events.emit("magicBullets");
                 this.sound.play("bassdrop");
@@ -188,6 +221,10 @@ export default class Play extends Phaser.Scene {
             this.scene.start("gameover");
         }
     }
+    /*
+     * This function is used to create a bullet
+     * and setup a timer to destroy it
+     */
     createBullet() {
         const bullet = this.bullets.create(this.player.x, this.player.y);
 
@@ -204,5 +241,7 @@ export default class Play extends Phaser.Scene {
                 bullet.destroy();
             }
         });
+
+        return bullet;
     }
 };
